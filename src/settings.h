@@ -9,7 +9,17 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
+#include <ArduinoJson.h>
+
+// ------------------- user settings
 #define DEBUG
+
+// comment below 2 lines if you want a dynamic ip address
+// The APGATEWAY you can find by pasting in the windows powershell: ipconfig
+#define AP_GATEWAY "192.168.2.254"
+#define AP_STATIP "192.168.2.68"
+
+// --------------------- end user settings
 
 #define UPDATE_INTERVAL 1000 // 1 second
 // #define UPDATE_INTERVAL 10000 // 10 seconds

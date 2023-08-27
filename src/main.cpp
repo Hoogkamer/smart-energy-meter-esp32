@@ -9,6 +9,14 @@ AsyncWebServer server(80);
 AsyncEventSource events("/events");
 WiFiManager manager;
 
+#define TRIGGER_PIN 0
+int timeout = 120;
+bool needReboot = false;
+
+char static_ip[16] = AP_STATIP;
+char static_gw[16] = AP_GATEWAY;
+char static_sn[16] = "255.255.255.0";
+
 void startWebServer()
 {
 
@@ -126,12 +134,48 @@ void warnNotConnected(WiFiManager *myWiFiManager)
 {
 
     log_i("Could not connect. Connect your computer/phone to 'WIFI_RADIO' to configure wifi.");
+    blinkLed(3, 200);
+    needReboot = true;
 }
 
 void connectWiFi()
 
 {
-    // manager.resetSettings();
+
+    if (SPIFFS.exists("/config.json"))
+    {
+        File configFile = SPIFFS.open("/config.json", "r");
+        if (configFile)
+        {
+            size_t size = configFile.size();
+            std::unique_ptr<char[]> buf(new char[size]);
+            configFile.readBytes(buf.get(), size);
+            DynamicJsonDocument json(1024);
+            auto deserializeError = deserializeJson(json, buf.get());
+            serializeJson(json, Serial);
+            if (!deserializeError)
+            {
+                if (json["ip"])
+                {
+                    strcpy(static_ip, json["ip"]);
+                    strcpy(static_gw, json["gateway"]);
+                    strcpy(static_sn, json["subnet"]);
+                }
+            }
+        }
+    }
+
+    // set static ip
+
+#ifdef AP_STATIP
+
+    IPAddress _ip, _gw, _sn;
+    _ip.fromString(static_ip);
+    _gw.fromString(static_gw);
+    _sn.fromString(static_sn);
+    manager.setSTAStaticIPConfig(_ip, _gw, _sn);
+    manager.setShowStaticFields(true);
+#endif
     manager.setAPCallback(warnNotConnected);
     bool success = manager.autoConnect("WIFI_RADIO");
     if (!success)
@@ -142,7 +186,19 @@ void connectWiFi()
     {
         log_i("Connected");
     }
-
+    if (needReboot)
+    {
+        DynamicJsonDocument json(1024);
+        json["ip"] = WiFi.localIP().toString();
+        json["gateway"] = WiFi.gatewayIP().toString();
+        json["subnet"] = WiFi.subnetMask().toString();
+        File configFile = SPIFFS.open("/config.json", "w");
+        serializeJson(json, Serial);
+        serializeJson(json, configFile);
+        configFile.close();
+        delay(500);
+        ESP.restart();
+    }
     Serial.print("Connect your device to:");
     Serial.println(WiFi.localIP().toString());
 }
@@ -168,12 +224,22 @@ void setup()
     //      setupOTA();
 }
 
+void getWifiManagerLoop()
+{
+    if (digitalRead(TRIGGER_PIN) == LOW)
+    {
+        // reset settings - for testing
+        manager.resetSettings();
+        ESP.restart();
+    }
+}
 /***********************************
             Main Loop
  ***********************************/
 void loop()
 {
 
+    getWifiManagerLoop();
     loopSerial2();
 
     // ArduinoOTA.handle();
