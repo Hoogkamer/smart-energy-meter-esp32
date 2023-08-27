@@ -2,7 +2,7 @@
 
 WiFiClient espClient;
 
-int dataArray[4];
+int dataArray[5];
 int secondEntry = 0;
 int temperature = 0;
 AsyncWebServer server(80);
@@ -42,6 +42,7 @@ void processCode(char readit[], const std::string &code, int pos)
 
     size_t startPos = readitStr.find('(');
     size_t endPos = readitStr.find('*');
+    size_t endPosTS = readitStr.find('S');
 
     if (startPos < 0 || endPos < 1)
     {
@@ -49,15 +50,21 @@ void processCode(char readit[], const std::string &code, int pos)
     }
 
     std::string extracted;
-    if (pos == GAS_TOT)
+    if (pos == POS_TIMESTAMP)
     {
+        // 0-0:1.0.0(230826174135S)
+        extracted = readitStr.substr(startPos + 1, endPosTS - startPos - 1);
+    }
+    else if (pos == POS_GAS_TOT)
+    {
+        // 0-1:24.2.1(230826174001S)(00414.955*m3)
         std::string extracted1 = readitStr.substr(startPos + 1);
         size_t startPos1 = extracted1.find('(');
-
         extracted = extracted1.substr(startPos1 + 1, endPos - startPos1 - 1);
     }
     else
     {
+        // 1-0:1.8.1(001483.717*kWh)
         extracted = readitStr.substr(startPos + 1, endPos - startPos - 1);
     }
 
@@ -65,18 +72,11 @@ void processCode(char readit[], const std::string &code, int pos)
 
     if (strncmp(code.c_str(), codepart.c_str(), strlen(code.c_str())) == 0)
     {
-        // Process the matching code
-
         double floatValue;
         std::istringstream iss(extracted);
         iss >> floatValue;
-
-        // Multiply the floating-point number by 1000
         int result = static_cast<int>(floatValue * 1000);
         dataArray[pos] = result;
-
-        // Serial.print(result);
-        // Serial.print("+");
     }
 }
 void loopSerial2()
@@ -87,17 +87,19 @@ void loopSerial2()
     readit[len] = '\n';
     readit[len + 1] = 0;
 
-    processCode(readit, "1-0:1.8.1", KW_1_TOT);
-    processCode(readit, "1-0:1.8.2", KW_2_TOT);
-    processCode(readit, "1-0:21.7.0", KW_1_ACT);
-    processCode(readit, "1-0:22.7.0", KW_2_ACT);
-    processCode(readit, "0-1:24.2.1", GAS_TOT);
+    processCode(readit, "1-0:1.8.1", POS_KW_1_TOT);
+    processCode(readit, "1-0:1.8.2", POS_KW_2_TOT);
+    processCode(readit, "1-0:21.7.0", POS_KW_1_ACT);
+    processCode(readit, "1-0:22.7.0", POS_KW_2_ACT);
+    processCode(readit, "0-1:24.2.1", POS_GAS_TOT);
+    processCode(readit, "0-0:1.0.0", POS_TIMESTAMP);
     if (readit[0] == '!')
     {
         secondEntry++;
         if (readit[0] == '!')
         {
-            int watt_live = dataArray[KW_1_ACT] + dataArray[KW_2_ACT];
+            // send live event for actual power watt draw
+            int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
             events.send(String(watt_live).c_str(), "watt_live", millis());
             secondEntry++;
         }

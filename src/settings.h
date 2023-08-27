@@ -16,11 +16,12 @@
 // #define UPDATE_INTERVAL 60000  // 1 minute
 // #define UPDATE_INTERVAL 300000 // 5 minutes
 
-#define KW_1_TOT 0
-#define KW_2_TOT 1
-#define KW_1_ACT 2
-#define KW_2_ACT 3
-#define GAS_TOT 4
+#define POS_KW_1_TOT 0
+#define POS_KW_2_TOT 1
+#define POS_KW_1_ACT 2
+#define POS_KW_2_ACT 3
+#define POS_GAS_TOT 4
+#define POS_TIMESTAMP 5
 
 #define HOSTNAME "p1meter"
 #define OTA_PASSWORD "admin"
