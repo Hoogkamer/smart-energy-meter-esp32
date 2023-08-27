@@ -133,7 +133,7 @@ void blinkLed(int numberOfBlinks, int msBetweenBlinks)
 void warnNotConnected(WiFiManager *myWiFiManager)
 {
 
-    log_i("Could not connect. Connect your computer/phone to 'WIFI_RADIO' to configure wifi.");
+    log_i("Could not connect. Connect your computer/phone to 'ENERGY_METER' to configure wifi.");
     blinkLed(3, 200);
     needReboot = true;
 }
@@ -177,7 +177,7 @@ void connectWiFi()
     manager.setShowStaticFields(true);
 #endif
     manager.setAPCallback(warnNotConnected);
-    bool success = manager.autoConnect("WIFI_RADIO");
+    bool success = manager.autoConnect("ENERGY_METER");
     if (!success)
     {
         log_w("Failed to connect");
