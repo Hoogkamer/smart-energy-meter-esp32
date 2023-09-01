@@ -2,9 +2,10 @@
 
 WiFiClient espClient;
 
-int dataArray[5];
-int secondEntry = 0;
-int temperature = 0;
+int dataArray[8];
+int hourHistory[24 * HOUR_HISTORY_DAYS][6];
+int dayHistory[DAYS_HISTORY_DAYS][6];
+
 AsyncWebServer server(80);
 AsyncEventSource events("/events");
 WiFiManager manager;
@@ -16,6 +17,15 @@ bool needReboot = false;
 char static_ip[16] = AP_STATIP;
 char static_gw[16] = AP_GATEWAY;
 char static_sn[16] = "255.255.255.0";
+void printIntArray(const int dataArray[], int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        Serial.print(dataArray[i]);
+        Serial.print(":");
+    }
+    Serial.println();
+}
 
 void startWebServer()
 {
@@ -61,6 +71,7 @@ void processCode(char readit[], const std::string &code, int pos)
     if (pos == POS_TIMESTAMP)
     {
         // 0-0:1.0.0(230826174135S)
+        // read string without seconds and S (-3)
         extracted = readitStr.substr(startPos + 1, endPosTS - startPos - 1);
     }
     else if (pos == POS_GAS_TOT)
@@ -80,18 +91,30 @@ void processCode(char readit[], const std::string &code, int pos)
 
     if (strncmp(code.c_str(), codepart.c_str(), strlen(code.c_str())) == 0)
     {
-        double floatValue;
-        std::istringstream iss(extracted);
-        iss >> floatValue;
-        int result = static_cast<int>(floatValue * 1000);
-        dataArray[pos] = result;
+
+        if (pos == POS_DATESTAMP)
+        {
+            int intValue;
+            std::string ext_date = extracted.substr(0, 6);
+            std::string ext_time = extracted.substr(6);
+            dataArray[POS_DATESTAMP] = std::stoi(ext_date.c_str());
+            dataArray[POS_TIMESTAMP] = std::stoi(ext_time.c_str());
+        }
+        else
+        {
+
+            double floatValue;
+            std::istringstream iss(extracted);
+            iss >> floatValue;
+            int result = static_cast<int>(floatValue * 1000);
+            dataArray[pos] = result;
+        }
     }
 }
 void loopSerial2()
 {
     char readit[P1_MAXLINELENGTH];
     int len = Serial2.readBytesUntil('\n', readit, P1_MAXLINELENGTH);
-
     readit[len] = '\n';
     readit[len + 1] = 0;
 
@@ -100,17 +123,15 @@ void loopSerial2()
     processCode(readit, "1-0:21.7.0", POS_KW_1_ACT);
     processCode(readit, "1-0:22.7.0", POS_KW_2_ACT);
     processCode(readit, "0-1:24.2.1", POS_GAS_TOT);
-    processCode(readit, "0-0:1.0.0", POS_TIMESTAMP);
-    if (readit[0] == '!')
+    processCode(readit, "0-0:1.0.0", POS_DATESTAMP);
+    if (readit[0] == '!') // end of record
     {
-        secondEntry++;
-        if (readit[0] == '!')
-        {
-            // send live event for actual power watt draw
-            int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
-            events.send(String(watt_live).c_str(), "watt_live", millis());
-            secondEntry++;
-        }
+
+        printIntArray(dataArray, 7);
+
+        // send live event for actual power watt draw
+        int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
+        events.send(String(watt_live).c_str(), "watt_live", millis());
     }
 }
 

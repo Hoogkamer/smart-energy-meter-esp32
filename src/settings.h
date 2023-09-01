@@ -21,17 +21,18 @@
 
 // --------------------- end user settings
 
-#define UPDATE_INTERVAL 1000 // 1 second
-// #define UPDATE_INTERVAL 10000 // 10 seconds
-// #define UPDATE_INTERVAL 60000  // 1 minute
-// #define UPDATE_INTERVAL 300000 // 5 minutes
+// how many days to store the hourly and daily stats
+#define HOUR_HISTORY_DAYS 31
+#define DAYS_HISTORY_DAYS 366
 
 #define POS_KW_1_TOT 0
 #define POS_KW_2_TOT 1
-#define POS_KW_1_ACT 2
-#define POS_KW_2_ACT 3
-#define POS_GAS_TOT 4
+#define POS_GAS_TOT 2
+#define WATER_DIFF 3
+#define POS_DATESTAMP 4
 #define POS_TIMESTAMP 5
+#define POS_KW_1_ACT 6
+#define POS_KW_2_ACT 7
 
 #define HOSTNAME "p1meter"
 #define OTA_PASSWORD "admin"
