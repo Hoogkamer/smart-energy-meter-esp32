@@ -21,9 +21,10 @@
 
 // --------------------- end user settings
 
-// how many days to store the hourly and daily stats
-#define HOUR_HISTORY_DAYS 31
-#define DAYS_HISTORY_DAYS 366
+// how many 5min, hours, days to store
+#define MIN5_HISTORY_LENGTH 10
+#define HOUR_HISTORY_LENGTH 20
+#define DAY_HISTORY_LENGTH 366
 
 #define POS_KW_1_TOT 0
 #define POS_KW_2_TOT 1

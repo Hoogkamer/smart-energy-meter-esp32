@@ -3,8 +3,12 @@
 WiFiClient espClient;
 
 int dataArray[8];
-int hourHistory[24 * HOUR_HISTORY_DAYS][6];
-int dayHistory[DAYS_HISTORY_DAYS][6];
+int fiveMinHistory[MIN5_HISTORY_LENGTH][6];
+int hourHistory[HOUR_HISTORY_LENGTH][6];
+int prevMeasureTime = -1;
+int prevMeasureHour = -1;
+
+int dayHistory[DAY_HISTORY_LENGTH][6];
 
 AsyncWebServer server(80);
 AsyncEventSource events("/events");
@@ -102,7 +106,6 @@ void processCode(char readit[], const std::string &code, int pos)
         }
         else
         {
-
             double floatValue;
             std::istringstream iss(extracted);
             iss >> floatValue;
@@ -111,6 +114,67 @@ void processCode(char readit[], const std::string &code, int pos)
         }
     }
 }
+void printTable(int table[][6], int tableLength)
+{
+    Serial.println("P------------->");
+    for (int i = 0; i < tableLength; i++)
+    {
+        if (table[i][POS_DATESTAMP] == 0)
+        {
+            continue;
+        }
+        for (int j = 0; j < 6; j++)
+        {
+            Serial.print(table[i][j]);
+            Serial.print(":");
+        }
+        Serial.println();
+    }
+    Serial.println("<--------------");
+}
+
+void addValueToHourHistory()
+{
+    static int index = 0;
+    for (int i = 0; i < 6; i++)
+    {
+        hourHistory[index][i] = dataArray[i];
+    }
+
+    index = (index + 1) % HOUR_HISTORY_LENGTH;
+    printTable(hourHistory, HOUR_HISTORY_LENGTH);
+}
+void addValueToFiveMinHistory()
+{
+    static int index = 0;
+    for (int i = 0; i < 6; i++)
+    {
+        fiveMinHistory[index][i] = dataArray[i];
+    }
+
+    index = (index + 1) % MIN5_HISTORY_LENGTH;
+    printTable(fiveMinHistory, MIN5_HISTORY_LENGTH);
+}
+
+// void printTable1()
+// {
+//     static int hourNumEntries = std::min(hourNumEntries + 1, HOUR_HISTORY_LENGTH);
+
+//     int start = hourIndex;
+//     Serial.println("-------------->");
+//     for (int i = 0; i < hourNumEntries; i++)
+//     {
+//         for (int j = 0; j < 6; j++)
+//         {
+//             Serial.print(hourHistory[start][j]);
+//             Serial.print(":");
+//         }
+//         Serial.println();
+
+//         start = (start + 1) % HOUR_HISTORY_LENGTH; // Move to the next index, wrapping around
+//     }
+//     Serial.println("<--------------");
+// }
 void loopSerial2()
 {
     char readit[P1_MAXLINELENGTH];
@@ -126,12 +190,30 @@ void loopSerial2()
     processCode(readit, "0-0:1.0.0", POS_DATESTAMP);
     if (readit[0] == '!') // end of record
     {
-
-        printIntArray(dataArray, 7);
-
-        // send live event for actual power watt draw
+        if (prevMeasureTime == -1)
+        {
+            prevMeasureTime = dataArray[POS_TIMESTAMP];
+            prevMeasureHour = prevMeasureTime;
+        }
+        // printIntArray(dataArray, 7);
+        //  send live event for actual power watt draw
         int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
         events.send(String(watt_live).c_str(), "watt_live", millis());
+
+        int currentMin = dataArray[POS_TIMESTAMP] / 100;
+        int previousMin = prevMeasureTime / 100;
+        if (std::abs(currentMin - previousMin) >= 1)
+        {
+            addValueToFiveMinHistory();
+            prevMeasureTime = dataArray[POS_TIMESTAMP];
+        }
+        int currentHour = dataArray[POS_TIMESTAMP] / 10000;
+        int previousHour = prevMeasureHour / 10000;
+        if (std::abs(currentHour - previousHour) >= 1)
+        {
+            addValueToHourHistory();
+            prevMeasureHour = dataArray[POS_TIMESTAMP];
+        }
     }
 }
 
@@ -156,6 +238,7 @@ void warnNotConnected(WiFiManager *myWiFiManager)
 
     log_i("Could not connect. Connect your computer/phone to 'ENERGY_METER' to configure wifi.");
     blinkLed(3, 200);
+    digitalWrite(LED_BUILTIN, HIGH);
     needReboot = true;
 }
 
