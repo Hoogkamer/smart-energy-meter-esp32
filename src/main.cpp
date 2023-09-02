@@ -5,9 +5,6 @@ WiFiClient espClient;
 int dataArray[8];
 int fiveMinHistory[MIN5_HISTORY_LENGTH][6];
 int hourHistory[HOUR_HISTORY_LENGTH][6];
-int prevMeasureTime = -1;
-int prevMeasureHour = -1;
-
 int dayHistory[DAY_HISTORY_LENGTH][6];
 
 AsyncWebServer server(80);
@@ -132,10 +129,36 @@ void printTable(int table[][6], int tableLength)
     }
     Serial.println("<--------------");
 }
+int getIndexForTable(int table[][6], int tableLength)
+{
+    // calculate the index for this circular table based on max date and max time
+
+    int maxDate = 0;
+    int maxTime = 0;
+    int index = -1;
+    for (int i = 0; i < tableLength; i++)
+    {
+        // if found a later date or time
+        if ((maxDate < table[i][POS_DATESTAMP]) || (maxDate == table[i][POS_DATESTAMP] && maxTime < table[i][POS_TIMESTAMP]))
+        {
+            maxDate = table[i][POS_DATESTAMP];
+            maxTime = table[i][POS_TIMESTAMP];
+            index = i;
+        }
+    }
+    Serial.print("found index");
+    index++;
+    Serial.println(index);
+    return index;
+}
 
 void addValueToHourHistory()
 {
-    static int index = 0;
+    static int index = -1;
+    if (index == -1)
+    {
+        index = getIndexForTable(hourHistory, HOUR_HISTORY_LENGTH);
+    }
     for (int i = 0; i < 6; i++)
     {
         hourHistory[index][i] = dataArray[i];
@@ -144,9 +167,28 @@ void addValueToHourHistory()
     index = (index + 1) % HOUR_HISTORY_LENGTH;
     printTable(hourHistory, HOUR_HISTORY_LENGTH);
 }
+void addValueToDayHistory()
+{
+    static int index = -1;
+    if (index == -1)
+    {
+        index = getIndexForTable(fiveMinHistory, MIN5_HISTORY_LENGTH);
+    }
+    for (int i = 0; i < 6; i++)
+    {
+        dayHistory[index][i] = dataArray[i];
+    }
+
+    index = (index + 1) % DAY_HISTORY_LENGTH;
+    printTable(dayHistory, DAY_HISTORY_LENGTH);
+}
 void addValueToFiveMinHistory()
 {
-    static int index = 0;
+    static int index = -1;
+    if (index == -1)
+    {
+        index = getIndexForTable(fiveMinHistory, MIN5_HISTORY_LENGTH);
+    }
     for (int i = 0; i < 6; i++)
     {
         fiveMinHistory[index][i] = dataArray[i];
@@ -175,46 +217,166 @@ void addValueToFiveMinHistory()
 //     }
 //     Serial.println("<--------------");
 // }
-void loopSerial2()
+
+void loadTableFromStorage(std::string tableName, int historyTable[][6], int tableLength)
 {
+    File historyFile = SPIFFS.open(tableName.c_str(), "r");
+    int i = 0;
+    int j = 0;
+    int value = -1;
+    char valbuffer[12] = "";
+    int valpos = 0;
+    char ch = '0';
+    while (historyFile.available())
+    {
+        ch = historyFile.read();
+        if (isDigit(ch))
+        {
+            valbuffer[valpos] = ch; // save digit in buffer
+            valpos++;               // increment position for the next character
+        }
+        if (ch == ' ' && j < 6)
+        {
+            valbuffer[valpos] = 0;
+            value = atoi(valbuffer);
+            historyTable[i][j] = value;
+            j++;
+
+            valpos = 0;
+            continue;
+        }
+        if (ch == '\n')
+        {
+            j = 0;
+            i++;
+            valpos = 0;
+            continue;
+        }
+        if (i > tableLength)
+            break;
+    }
+}
+
+void saveTableToStorage(std::string tableName, int historyTable[][6], int tableLength)
+{
+    File historyFile = SPIFFS.open(tableName.c_str(), "w");
+    if (historyFile)
+    {
+
+        for (int i = 0; i < tableLength; i++)
+        {
+            for (int j = 0; j < 6; j++)
+            {
+                historyFile.print(historyTable[i][j]);
+                historyFile.print(' ');
+            }
+            historyFile.print('\n');
+        }
+    }
+}
+void saveAllHistoryTablesToStorage()
+{
+    saveTableToStorage("/minutehistory.txt", fiveMinHistory, MIN5_HISTORY_LENGTH);
+    saveTableToStorage("/dayhistory.txt", dayHistory, DAY_HISTORY_LENGTH);
+    saveTableToStorage("/hourhistory.txt", hourHistory, HOUR_HISTORY_LENGTH);
+}
+void readAllHistoryTablesFromStorage()
+{
+    loadTableFromStorage("/minutehistory.txt", fiveMinHistory, MIN5_HISTORY_LENGTH);
+    loadTableFromStorage("/dayhistory.txt", dayHistory, DAY_HISTORY_LENGTH);
+    loadTableFromStorage("/hourhistory.txt", hourHistory, HOUR_HISTORY_LENGTH);
+    Serial.println("Read in tables:");
+    printTable(fiveMinHistory, MIN5_HISTORY_LENGTH);
+    printTable(hourHistory, HOUR_HISTORY_LENGTH);
+    printTable(dayHistory, DAY_HISTORY_LENGTH);
+}
+void sendLiveData()
+{
+    int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
+    events.send(String(watt_live).c_str(), "watt_live", millis());
+}
+void saveMinuteData()
+{
+    static int prevMeasureTime = 0;
+    if (!prevMeasureTime)
+    {
+        prevMeasureTime = dataArray[POS_TIMESTAMP];
+        return;
+    }
+    int currentMin = dataArray[POS_TIMESTAMP] / 100;
+    int previousMin = prevMeasureTime / 100;
+    if (std::abs(currentMin - previousMin) >= 5) // add entry every 5 minutes
+    {
+        addValueToFiveMinHistory();
+        prevMeasureTime = dataArray[POS_TIMESTAMP];
+        // saveAllHistoryTablesToStorage();
+    }
+}
+
+void saveHourData()
+{
+    static int prevMeasureTime = 0;
+    if (!prevMeasureTime)
+    {
+        prevMeasureTime = dataArray[POS_TIMESTAMP];
+        return;
+    }
+
+    int currentHour = dataArray[POS_TIMESTAMP] / 10000;
+    int previousHour = prevMeasureTime / 10000;
+    if (std::abs(currentHour - previousHour) >= 1)
+    {
+        addValueToHourHistory();
+        prevMeasureTime = dataArray[POS_TIMESTAMP];
+        saveAllHistoryTablesToStorage(); // todo delete hourly save
+    }
+}
+void saveDayData()
+{
+    static int prevMeasureDate = 0;
+    if (!prevMeasureDate)
+    {
+        prevMeasureDate = dataArray[POS_DATESTAMP];
+        return;
+    }
+
+    int currentMeasureDate = dataArray[POS_DATESTAMP];
+
+    if ((currentMeasureDate - prevMeasureDate) >= 1) // add entry every 1 day
+    {
+        addValueToDayHistory();
+        saveAllHistoryTablesToStorage();
+        prevMeasureDate = dataArray[POS_DATESTAMP];
+    }
+}
+
+void processResults(char readit[P1_MAXLINELENGTH])
+{
+    if (readit[0] == '!') // whole telegram has been processed
+    {
+        sendLiveData();
+        saveMinuteData();
+        saveHourData();
+        saveDayData();
+    }
+}
+void getMeasurement()
+{
+    // read one line of the telegram (result from smart meter)
     char readit[P1_MAXLINELENGTH];
     int len = Serial2.readBytesUntil('\n', readit, P1_MAXLINELENGTH);
     readit[len] = '\n';
     readit[len + 1] = 0;
 
+    // decode and put it in dataArray
     processCode(readit, "1-0:1.8.1", POS_KW_1_TOT);
     processCode(readit, "1-0:1.8.2", POS_KW_2_TOT);
     processCode(readit, "1-0:21.7.0", POS_KW_1_ACT);
     processCode(readit, "1-0:22.7.0", POS_KW_2_ACT);
     processCode(readit, "0-1:24.2.1", POS_GAS_TOT);
     processCode(readit, "0-0:1.0.0", POS_DATESTAMP);
-    if (readit[0] == '!') // end of record
-    {
-        if (prevMeasureTime == -1)
-        {
-            prevMeasureTime = dataArray[POS_TIMESTAMP];
-            prevMeasureHour = prevMeasureTime;
-        }
-        // printIntArray(dataArray, 7);
-        //  send live event for actual power watt draw
-        int watt_live = dataArray[POS_KW_1_ACT] + dataArray[POS_KW_2_ACT];
-        events.send(String(watt_live).c_str(), "watt_live", millis());
 
-        int currentMin = dataArray[POS_TIMESTAMP] / 100;
-        int previousMin = prevMeasureTime / 100;
-        if (std::abs(currentMin - previousMin) >= 1)
-        {
-            addValueToFiveMinHistory();
-            prevMeasureTime = dataArray[POS_TIMESTAMP];
-        }
-        int currentHour = dataArray[POS_TIMESTAMP] / 10000;
-        int previousHour = prevMeasureHour / 10000;
-        if (std::abs(currentHour - previousHour) >= 1)
-        {
-            addValueToHourHistory();
-            prevMeasureHour = dataArray[POS_TIMESTAMP];
-        }
-    }
+    processResults(readit);
 }
 
 // readp1
@@ -235,7 +397,6 @@ void blinkLed(int numberOfBlinks, int msBetweenBlinks)
 
 void warnNotConnected(WiFiManager *myWiFiManager)
 {
-
     log_i("Could not connect. Connect your computer/phone to 'ENERGY_METER' to configure wifi.");
     blinkLed(3, 200);
     digitalWrite(LED_BUILTIN, HIGH);
@@ -243,9 +404,7 @@ void warnNotConnected(WiFiManager *myWiFiManager)
 }
 
 void connectWiFi()
-
 {
-
     if (SPIFFS.exists("/config.json"))
     {
         File configFile = SPIFFS.open("/config.json", "r");
@@ -272,7 +431,6 @@ void connectWiFi()
     // set static ip
 
 #ifdef AP_STATIP
-
     IPAddress _ip, _gw, _sn;
     _ip.fromString(static_ip);
     _gw.fromString(static_gw);
@@ -280,6 +438,8 @@ void connectWiFi()
     manager.setSTAStaticIPConfig(_ip, _gw, _sn);
     manager.setShowStaticFields(true);
 #endif
+    if (manager.getWiFiIsSaved())
+        manager.setEnableConfigPortal(false);
     manager.setAPCallback(warnNotConnected);
     bool success = manager.autoConnect("ENERGY_METER");
     if (!success)
@@ -306,13 +466,8 @@ void connectWiFi()
     Serial.print("Connect your device to:");
     Serial.println(WiFi.localIP().toString());
 }
-
-/***********************************
-            Main Setup
- ***********************************/
-void setup()
+void initialize()
 {
-    // Initialize pins
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW);
     Serial.begin(BAUD_RATE);
@@ -322,6 +477,15 @@ void setup()
         log_e("An Error has occurred while mounting SPIFFS");
         return;
     }
+}
+/***********************************
+            Main Setup
+ ***********************************/
+void setup()
+{
+    initialize();
+    readAllHistoryTablesFromStorage();
+
     connectWiFi();
     startWebServer();
     //      delay(3000);
@@ -337,6 +501,17 @@ void getWifiManagerLoop()
         ESP.restart();
     }
 }
+void showWiFiConnectStatus()
+{
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        digitalWrite(LED_BUILTIN, HIGH);
+    }
+    else
+    {
+        digitalWrite(LED_BUILTIN, LOW);
+    }
+}
 /***********************************
             Main Loop
  ***********************************/
@@ -344,7 +519,8 @@ void loop()
 {
 
     getWifiManagerLoop();
-    loopSerial2();
+    getMeasurement();
+    showWiFiConnectStatus();
 
     // ArduinoOTA.handle();
 }

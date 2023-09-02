@@ -22,8 +22,8 @@
 // --------------------- end user settings
 
 // how many 5min, hours, days to store
-#define MIN5_HISTORY_LENGTH 10
-#define HOUR_HISTORY_LENGTH 20
+#define MIN5_HISTORY_LENGTH 100
+#define HOUR_HISTORY_LENGTH 200
 #define DAY_HISTORY_LENGTH 366
 
 #define POS_KW_1_TOT 0
