@@ -14,6 +14,8 @@
 // ------------------- user settings
 #define DEBUG
 
+#define CORS_DEBUG
+
 // comment below 2 lines if you want a dynamic ip address
 // The APGATEWAY you can find by pasting in the windows powershell: ipconfig
 #define AP_GATEWAY "192.168.2.254"

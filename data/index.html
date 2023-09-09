@@ -13,30 +13,26 @@
     <link rel="icon" href="data:," />
   </head>
   <body>
-    <div class="topnav">
-      <h1>LIVE ENERGY</h1>
+    <div class="container">
+      <h2>ENERGY MONITOR</h2>
+      <br />
+      <br />
+      <a href="./live.html">
+        <button class="button-9 widthmax" role="link">
+          Live Electricity
+        </button></a
+      >
+      <a href="./trends.html?level=M">
+        <button class="button-9 widthmax" role="link">
+          Trend 5 minutes
+        </button></a
+      >
+      <a href="./trends.html?level=H">
+        <button class="button-9 widthmax" role="link">Trend per hour</button></a
+      >
+      <a href="./trends.html?level=D">
+        <button class="button-9 widthmax" role="link">Trend per day</button></a
+      >
     </div>
-    <div class="content">
-      <div class="cards">
-        <div class="card">
-          <p>
-            <i class="fas fa-solid fa-bolt" style="color: #059e8a"></i>
-            WATT LIVE
-          </p>
-          <p>
-            <span class="reading"><span id="watt_live">0</span> 
-          </p>
-        </div>
-      </div>
-      <div class="myChart">
-        <canvas id="myChart1"></canvas>
-      </div>
-      <div class="myChart">
-        <canvas id="myChart2"></canvas>
-      </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="./script.js"></script>
-    
   </body>
 </html>

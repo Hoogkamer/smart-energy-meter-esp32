@@ -15,9 +15,25 @@ WiFiManager manager;
 int timeout = 120;
 bool needReboot = false;
 
+unsigned long wifiCheck = millis();
+
 char static_ip[16] = AP_STATIP;
 char static_gw[16] = AP_GATEWAY;
 char static_sn[16] = "255.255.255.0";
+void blinkLed(int numberOfBlinks, int msBetweenBlinks)
+{
+    for (int i = 0; i < numberOfBlinks; i++)
+    {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(msBetweenBlinks);
+        digitalWrite(LED_BUILTIN, LOW);
+        if (i != numberOfBlinks - 1)
+        {
+            delay(msBetweenBlinks);
+        }
+    }
+}
+
 void printIntArray(const int dataArray[], int size)
 {
     for (int i = 0; i < size; i++)
@@ -34,15 +50,24 @@ void startWebServer()
     //  Route for root / web page https://raphaelpralat.medium.com/example-of-json-rest-api-for-esp32-4a5f64774a05
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
+    server.on("/get-minutes", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/minutehistory.txt", "application/json"); });
+    server.on("/get-hours", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/hourhistory.txt", "application/json"); });
+    server.on("/get-days", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/dayhistory.txt", "application/json"); });
+
     server.serveStatic("/", SPIFFS, "/");
     events.onConnect([](AsyncEventSourceClient *client)
                      {
-  if(client->lastId()){
-    Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
-  }
-  // send event with message "hello!", id current millis
-  // and set reconnect delay to 1 second
-  client->send("hello!", NULL, millis(), 10000); });
+                         if (client->lastId())
+                         {
+                             Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
+                         }
+                         // send event with message "hello!", id current millis
+                         // and set reconnect delay to 1 second
+                         // client->send("hello!", NULL, millis(), 10000);
+                     });
     server.addHandler(&events);
 
 #ifdef CORS_DEBUG
@@ -358,6 +383,7 @@ void processResults(char readit[P1_MAXLINELENGTH])
         saveMinuteData();
         saveHourData();
         saveDayData();
+        blinkLed(1, 100);
     }
 }
 void getMeasurement()
@@ -380,20 +406,6 @@ void getMeasurement()
 }
 
 // readp1
-
-void blinkLed(int numberOfBlinks, int msBetweenBlinks)
-{
-    for (int i = 0; i < numberOfBlinks; i++)
-    {
-        digitalWrite(LED_BUILTIN, HIGH);
-        delay(msBetweenBlinks);
-        digitalWrite(LED_BUILTIN, LOW);
-        if (i != numberOfBlinks - 1)
-        {
-            delay(msBetweenBlinks);
-        }
-    }
-}
 
 void warnNotConnected(WiFiManager *myWiFiManager)
 {
@@ -438,8 +450,17 @@ void connectWiFi()
     manager.setSTAStaticIPConfig(_ip, _gw, _sn);
     manager.setShowStaticFields(true);
 #endif
-    if (manager.getWiFiIsSaved())
+
+    if (SPIFFS.exists("/needPortal"))
+    {
+        manager.setEnableConfigPortal(true);
+        Serial.println("no saved wifi, start portal");
+    }
+    else
+    {
         manager.setEnableConfigPortal(false);
+    }
+
     manager.setAPCallback(warnNotConnected);
     bool success = manager.autoConnect("ENERGY_METER");
     if (!success)
@@ -460,6 +481,7 @@ void connectWiFi()
         serializeJson(json, Serial);
         serializeJson(json, configFile);
         configFile.close();
+        SPIFFS.remove("/needPortal");
         delay(500);
         ESP.restart();
     }
@@ -497,19 +519,26 @@ void getWifiManagerLoop()
     if (digitalRead(TRIGGER_PIN) == LOW)
     {
         // reset settings - for testing
+        File configFile = SPIFFS.open("/needPortal", "w");
+        configFile.close();
+
         manager.resetSettings();
+        delay(1000);
         ESP.restart();
     }
 }
 void showWiFiConnectStatus()
 {
+    if (millis() - wifiCheck < 5000)
+        return;
+    wifiCheck = millis();
     if (WiFi.status() != WL_CONNECTED)
     {
-        digitalWrite(LED_BUILTIN, HIGH);
+
+        blinkLed(3, 50);
     }
     else
     {
-        digitalWrite(LED_BUILTIN, LOW);
     }
 }
 /***********************************
