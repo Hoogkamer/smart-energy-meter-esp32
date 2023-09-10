@@ -14,6 +14,8 @@
 // ------------------- user settings
 #define DEBUG
 
+#define CORS_DEBUG
+
 // comment below 2 lines if you want a dynamic ip address
 // The APGATEWAY you can find by pasting in the windows powershell: ipconfig
 #define AP_GATEWAY "192.168.2.254"
@@ -21,17 +23,19 @@
 
 // --------------------- end user settings
 
-#define UPDATE_INTERVAL 1000 // 1 second
-// #define UPDATE_INTERVAL 10000 // 10 seconds
-// #define UPDATE_INTERVAL 60000  // 1 minute
-// #define UPDATE_INTERVAL 300000 // 5 minutes
+// how many 5min, hours, days to store
+#define MIN5_HISTORY_LENGTH 100
+#define HOUR_HISTORY_LENGTH 200
+#define DAY_HISTORY_LENGTH 366
 
 #define POS_KW_1_TOT 0
 #define POS_KW_2_TOT 1
-#define POS_KW_1_ACT 2
-#define POS_KW_2_ACT 3
-#define POS_GAS_TOT 4
+#define POS_GAS_TOT 2
+#define WATER_DIFF 3
+#define POS_DATESTAMP 4
 #define POS_TIMESTAMP 5
+#define POS_KW_1_ACT 6
+#define POS_KW_2_ACT 7
 
 #define HOSTNAME "p1meter"
 #define OTA_PASSWORD "admin"
