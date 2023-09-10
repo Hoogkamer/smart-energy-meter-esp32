@@ -5,7 +5,7 @@ console.log("tt", timeframe);
 
 let local = false;
 let mock = false;
-// test=true;
+local = true;
 // mock=true;
 
 const timeframeSpecs = {
@@ -78,6 +78,8 @@ function processResponse(response, tfSpecs) {
   drawChart(graphData, "chartWater", "Water (L)", "waterDiff", tfSpecs);
 }
 function calculateGraphData(response, tfSpecs) {
+  let titlediv = document.getElementById("title");
+  titlediv.innerHTML = tfSpecs.title;
   let records = response.split(/\r?\n/);
   let dataMeasurements = [];
   let columns = [];
@@ -88,7 +90,8 @@ function calculateGraphData(response, tfSpecs) {
     dateString = columns[4];
     timeString = columns[5];
 
-    if (dateString === "0") return;
+    if (dateString == "0") return;
+    console.log(">>", dateString);
     const year = parseInt(dateString.substr(0, 2)) + 2000; // Assuming it's a year in the 21st century
     const month = parseInt(dateString.substr(2, 2)) - 1; // Months are zero-based (0-11)
     const day = parseInt(dateString.substr(4, 2));
@@ -111,6 +114,12 @@ function calculateGraphData(response, tfSpecs) {
     };
     dataMeasurements.push(obj);
   });
+
+  if (!dataMeasurements.length) {
+    let tsdiv = document.getElementById("lastTimeStamp");
+    tsdiv.innerHTML = "No data (yet)";
+    return;
+  }
   dataMeasurements.sort((a, b) => a.date - b.date);
   const lastTimeStamp = dataMeasurements[dataMeasurements.length - 1].date;
   let firstTimeStamp = new Date(lastTimeStamp);
@@ -120,8 +129,6 @@ function calculateGraphData(response, tfSpecs) {
 
   let tsdiv = document.getElementById("lastTimeStamp");
   tsdiv.innerHTML = lastTimeStamp.toLocaleString();
-  let titlediv = document.getElementById("title");
-  titlediv.innerHTML = tfSpecs.title;
 
   let graphArray = [];
   for (let i = 0; i <= tfSpecs.ticks; i++) {
