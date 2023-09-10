@@ -40,16 +40,16 @@ function init(tfSpecs) {
     console.log("starting");
     try {
       const res = await fetch(getURL);
+      const response = await res.text();
+      return response;
     } catch {
       let tsdiv = document.getElementById("lastTimeStamp");
       tsdiv.innerHTML = "Could not connect.";
     }
-    const response = await res.text();
-    return response;
   }
   fetchTrend().then((response) => {
     console.log(" ]]]", response);
-    processResponse(response);
+    processResponse(response, tfSpecs);
   });
 }
 function initMock(tfSpecs) {
