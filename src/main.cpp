@@ -323,6 +323,9 @@ void sendLiveData()
 void saveMinuteData()
 {
     static int prevMeasureTime = 0;
+    if (!(dataArray[POS_TIMESTAMP] / 100) % 5)
+        return;
+
     if (!prevMeasureTime)
     {
         prevMeasureTime = dataArray[POS_TIMESTAMP];
