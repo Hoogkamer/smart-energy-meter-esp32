@@ -11,6 +11,8 @@ AsyncWebServer server(80);
 AsyncEventSource events("/events");
 WiFiManager manager;
 
+long resetSwitchPressed = 0;
+
 #define TRIGGER_PIN 0
 int timeout = 120;
 bool needReboot = false;
@@ -33,6 +35,25 @@ void blinkLed(int numberOfBlinks, int msBetweenBlinks)
         }
     }
 }
+std::string convertTableToText(int intArray[][6], int rows)
+{
+    std::stringstream ss;
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < 6; j++)
+        {
+            ss << intArray[i][j];
+            if (j < 6 - 1)
+            {
+                ss << ' ';
+            }
+        }
+        ss << '\n'; // Add a newline character to separate rows
+    }
+
+    return ss.str();
+}
 
 void printIntArray(const int dataArray[], int size)
 {
@@ -50,11 +71,17 @@ void startWebServer()
     //  Route for root / web page https://raphaelpralat.medium.com/example-of-json-rest-api-for-esp32-4a5f64774a05
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
-    server.on("/get-minutes", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/get-minutes-file", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/minutehistory.txt", "application/json"); });
-    server.on("/get-hours", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/get-minutes", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(200, "text/html", convertTableToText(fiveMinHistory, MIN5_HISTORY_LENGTH).c_str()); });
+    server.on("/get-hours-file", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/hourhistory.txt", "application/json"); });
+    server.on("/get-hours", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(200, "text/html", convertTableToText(hourHistory, HOUR_HISTORY_LENGTH).c_str()); });
     server.on("/get-days", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(200, "text/html", convertTableToText(dayHistory, DAY_HISTORY_LENGTH).c_str()); });
+    server.on("/get-days-file", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/dayhistory.txt", "application/json"); });
 
     server.serveStatic("/", SPIFFS, "/");
@@ -299,6 +326,7 @@ void saveTableToStorage(std::string tableName, int historyTable[][6], int tableL
         }
     }
 }
+
 void saveAllHistoryTablesToStorage()
 {
     saveTableToStorage("/minutehistory.txt", fiveMinHistory, MIN5_HISTORY_LENGTH);
@@ -322,25 +350,13 @@ void sendLiveData()
 }
 void saveMinuteData()
 {
-    static int prevMeasureTime = 0;
-    if (!(dataArray[POS_TIMESTAMP] / 100) % 5)
-        return;
+    // check for 5 minutes and 00 sec
+    if ((((dataArray[POS_TIMESTAMP] / 100) % 5) == 0) && ((dataArray[POS_TIMESTAMP] % 100) == 0))
+    {
 
-    if (!prevMeasureTime)
-    {
-        prevMeasureTime = dataArray[POS_TIMESTAMP];
-        return;
-    }
-    int currentMin = dataArray[POS_TIMESTAMP] / 100;
-    int previousMin = prevMeasureTime / 100;
-    if (std::abs(currentMin - previousMin) >= 5) // add entry every 5 minutes
-    {
         addValueToFiveMinHistory();
-        prevMeasureTime = dataArray[POS_TIMESTAMP];
-        // saveAllHistoryTablesToStorage();
     }
 }
-
 void saveHourData()
 {
     static int prevMeasureTime = 0;
@@ -356,7 +372,7 @@ void saveHourData()
     {
         addValueToHourHistory();
         prevMeasureTime = dataArray[POS_TIMESTAMP];
-        saveAllHistoryTablesToStorage(); // todo delete hourly save
+        // saveAllHistoryTablesToStorage(); // todo delete hourly save
     }
 }
 void saveDayData()
@@ -517,19 +533,37 @@ void setup()
     //      setupOTA();
 }
 
-void getWifiManagerLoop()
+void testResetPinLoop()
 {
-    if (digitalRead(TRIGGER_PIN) == LOW)
+    if (digitalRead(TRIGGER_PIN) == LOW && !resetSwitchPressed)
     {
-        // reset settings - for testing
-        File configFile = SPIFFS.open("/needPortal", "w");
-        configFile.close();
+        resetSwitchPressed = millis();
+    }
+    if (digitalRead(TRIGGER_PIN) == HIGH && resetSwitchPressed)
+    {
+        if (millis() - resetSwitchPressed < 3000)
+        {
+            Serial.println("short press- reset");
+            resetSwitchPressed = 0;
+        }
+        else
+        {
+            Serial.println("long press-reset");
+            resetSwitchPressed = 0;
+            File configFile = SPIFFS.open("/needPortal", "w");
+            configFile.close();
 
-        manager.resetSettings();
-        delay(1000);
+            manager.resetSettings();
+        }
+
+        saveAllHistoryTablesToStorage();
+        delay(2000);
         ESP.restart();
     }
+
+    // // reset settings - for testing
 }
+
 void showWiFiConnectStatus()
 {
     if (millis() - wifiCheck < 5000)
@@ -550,7 +584,7 @@ void showWiFiConnectStatus()
 void loop()
 {
 
-    getWifiManagerLoop();
+    testResetPinLoop();
     getMeasurement();
     showWiFiConnectStatus();
 

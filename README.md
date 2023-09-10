@@ -29,12 +29,26 @@ Connect the plug to the smart meter P1 port
 
 See in settings.h, under user settings
 
+## Manual
+
+The led blinks every second when a new measure is received.
+The led blinks 3 times quickly as well if there is no wifi connection.
+Press the BOOT button to reboot and see if connection works (of course you should have your wifi access point working).
+If you want to reconfigure your wifi access point, press the BOOT button for about 5 seconds. Then wait for reboot and
+Connect to the WIFI manager. You will find access point ENERGY_METER with your phone or PC, then navigate in the browser to: http://192.168.4.1/
+
 ## Website
 
-The application will generate this website. It displays the current watt consumption, a graph with the last 120 second measurements and 1 hour of average watt consumption per minute.
+Navigate to the web address you configured in the WIFI manager.
+The application will generate this website.
 
-If the led blinks 3 time, you have no connection to the access point.
-Connect to access point ENERGY_METER then navigate in the browser to: http://192.168.4.1/
+- Current watt consumption, a graph with the last 120 second measurements and 1 hour of average watt consumption per minute.
+- last 100 measurements per 5 minutes.
+- last 100 measurements per hour.
+- last 100 measurements per day.
+
+Everything is calculated in average WH for electicity for the time units and total consumption of gas in M3 per time unit.
+Water is not yet measured.
 
 ![Wifi](/readme_info/wifi_manager.png)
 

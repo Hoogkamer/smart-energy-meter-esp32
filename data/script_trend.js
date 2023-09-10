@@ -3,25 +3,27 @@ const urlParams = new URLSearchParams(queryString);
 const timeframe = urlParams.get("level");
 console.log("tt", timeframe);
 //const mock = true;
+const test = true;
 const mock = false;
+//const test=false;
 const timeframeSpecs = {
   M: {
     unit: "M",
-    url: "http://192.168.2.67/get-minutes",
+    url: test ? "http://192.168.2.68/get-minutes" : "/get-minutes",
     ticks: 100,
     title: "Per 5 minutes",
     difMinutesFactor: 5,
   },
   H: {
     unit: "H",
-    url: "http://192.168.2.67/get-hours",
+    url: test ? "http://192.168.2.68/get-hours" : "/get-hours",
     ticks: 100,
     title: "Per hour",
     difMinutesFactor: 60,
   },
   D: {
     unit: "D",
-    url: "http://192.168.2.67/get-days",
+    url: mock ? "http://192.168.2.68/get-days" : "/get-days",
     ticks: 100,
     title: "Per day",
     difMinutesFactor: 24 * 60,
@@ -49,7 +51,12 @@ function init(tfSpecs) {
   }
   fetchTrend().then((response) => {
     console.log(" ]]]", response);
-    processResponse(response, tfSpecs);
+    if (response.startsWith("<!DOCTYPE html>")) {
+      let tsdiv = document.getElementById("lastTimeStamp");
+      tsdiv.innerHTML = "Got no data (yet)";
+    } else {
+      processResponse(response, tfSpecs);
+    }
   });
 }
 function initMock(tfSpecs) {
@@ -78,10 +85,11 @@ function calculateGraphData(response, tfSpecs) {
     if (columns.length !== 6) return;
     dateString = columns[4];
     timeString = columns[5];
+
+    if (dateString === "0") return;
     const year = parseInt(dateString.substr(0, 2)) + 2000; // Assuming it's a year in the 21st century
     const month = parseInt(dateString.substr(2, 2)) - 1; // Months are zero-based (0-11)
     const day = parseInt(dateString.substr(4, 2));
-    if (dateString === "0") return;
     if (timeString === "0") timeString = "000000";
     if (timeString.length === 5) timeString = "0" + timeString;
     const hour = parseInt(timeString.substr(0, 2));
