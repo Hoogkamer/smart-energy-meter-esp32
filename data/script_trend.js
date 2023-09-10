@@ -5,7 +5,9 @@ console.log("tt", timeframe);
 
 let local = false;
 let mock = false;
-local = true;
+
+// comment both below if you upload this file to the ESP
+// local = true;
 // mock=true;
 
 const timeframeSpecs = {
