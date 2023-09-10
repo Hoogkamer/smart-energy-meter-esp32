@@ -2,28 +2,30 @@ const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
 const timeframe = urlParams.get("level");
 console.log("tt", timeframe);
-//const mock = true;
-const test = true;
-const mock = false;
-//const test=false;
+
+let local = false;
+let mock = false;
+// test=true;
+// mock=true;
+
 const timeframeSpecs = {
   M: {
     unit: "M",
-    url: test ? "http://192.168.2.68/get-minutes" : "/get-minutes",
+    url: local ? "http://192.168.2.68/get-minutes" : "/get-minutes",
     ticks: 100,
     title: "Per 5 minutes",
     difMinutesFactor: 5,
   },
   H: {
     unit: "H",
-    url: test ? "http://192.168.2.68/get-hours" : "/get-hours",
+    url: local ? "http://192.168.2.68/get-hours" : "/get-hours",
     ticks: 100,
     title: "Per hour",
     difMinutesFactor: 60,
   },
   D: {
     unit: "D",
-    url: mock ? "http://192.168.2.68/get-days" : "/get-days",
+    url: local ? "http://192.168.2.68/get-days" : "/get-days",
     ticks: 100,
     title: "Per day",
     difMinutesFactor: 24 * 60,
