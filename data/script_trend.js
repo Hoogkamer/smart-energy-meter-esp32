@@ -2,37 +2,73 @@ const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
 const timeframe = urlParams.get("level");
 console.log("tt", timeframe);
+//const mock = true;
+const mock = false;
+const timeframeSpecs = {
+  M: {
+    unit: "M",
+    url: "http://192.168.2.67/get-minutes",
+    ticks: 100,
+    title: "Per 5 minutes",
+    difMinutesFactor: 5,
+  },
+  H: {
+    unit: "H",
+    url: "http://192.168.2.67/get-hours",
+    ticks: 100,
+    title: "Per hour",
+    difMinutesFactor: 60,
+  },
+  D: {
+    unit: "D",
+    url: "http://192.168.2.67/get-days",
+    ticks: 100,
+    title: "Per day",
+    difMinutesFactor: 24 * 60,
+  },
+};
+if (mock) {
+  initMock(timeframeSpecs[timeframe]);
+} else {
+  init(timeframeSpecs[timeframe]);
+}
 
-init(timeframe);
+function init(tfSpecs) {
+  let getURL = tfSpecs.url;
 
-function init(timeframe) {
-  let getURL =
-    timeframe === "M"
-      ? "http://192.168.2.67/get-minutes"
-      : timeframe == "H"
-      ? "http://192.168.2.67/get-hours"
-      : "http://192.168.2.67/get-days";
   async function fetchTrend() {
     console.log("starting");
-    const res = await fetch(getURL);
+    try {
+      const res = await fetch(getURL);
+    } catch {
+      let tsdiv = document.getElementById("lastTimeStamp");
+      tsdiv.innerHTML = "Could not connect.";
+    }
     const response = await res.text();
-    //let graphData = calculateGraphData(responseMinute, "M");
     return response;
   }
   fetchTrend().then((response) => {
     console.log(" ]]]", response);
-    let graphData = calculateGraphData(response, timeframe);
-    drawChart(
-      graphData,
-      "chartElec",
-      "Electricity (WattHr)",
-      "electricityDiff"
-    );
-    drawChart(graphData, "chartGas", "Gas (M3)", "gasDiff");
-    drawChart(graphData, "chartWater", "Water (L)", "waterDiff");
+    processResponse(response);
   });
 }
-function calculateGraphData(response, timeFrame) {
+function initMock(tfSpecs) {
+  response = returnMock(tfSpecs);
+  processResponse(response, tfSpecs);
+}
+function processResponse(response, tfSpecs) {
+  let graphData = calculateGraphData(response, tfSpecs);
+  drawChart(
+    graphData,
+    "chartElec",
+    "Electricity (WattHr)",
+    "electricityDiff",
+    tfSpecs
+  );
+  drawChart(graphData, "chartGas", "Gas (M3)", "gasDiff", tfSpecs);
+  drawChart(graphData, "chartWater", "Water (L)", "waterDiff", tfSpecs);
+}
+function calculateGraphData(response, tfSpecs) {
   let records = response.split(/\r?\n/);
   let dataMeasurements = [];
   let columns = [];
@@ -47,6 +83,7 @@ function calculateGraphData(response, timeFrame) {
     const day = parseInt(dateString.substr(4, 2));
     if (dateString === "0") return;
     if (timeString === "0") timeString = "000000";
+    if (timeString.length === 5) timeString = "0" + timeString;
     const hour = parseInt(timeString.substr(0, 2));
     const minute = parseInt(timeString.substr(2, 2));
     const second = parseInt(timeString.substr(4, 2));
@@ -65,69 +102,68 @@ function calculateGraphData(response, timeFrame) {
     dataMeasurements.push(obj);
   });
   dataMeasurements.sort((a, b) => a.date - b.date);
-  console.log(dataMeasurements);
-  let previous = {};
-  let difMinutes = 0;
   const lastTimeStamp = dataMeasurements[dataMeasurements.length - 1].date;
+  let firstTimeStamp = new Date(lastTimeStamp);
+  firstTimeStamp.setMinutes(
+    lastTimeStamp.getMinutes() - tfSpecs.difMinutesFactor * tfSpecs.ticks
+  );
+
   let tsdiv = document.getElementById("lastTimeStamp");
   tsdiv.innerHTML = lastTimeStamp.toLocaleString();
   let titlediv = document.getElementById("title");
-  titlediv.innerHTML =
-    timeFrame === "M"
-      ? "Per 5 minutes"
-      : timeFrame === "H"
-      ? "Per hour"
-      : "Per day";
+  titlediv.innerHTML = tfSpecs.title;
 
-  graphData = [];
-  let electricityDiff = 0;
-  let gasDiff = 0;
-  let waterDiff = 0;
-  let days = timeFrame === "M" ? 1 : timeFrame === "H" ? 7 : 365;
-  let WHfactor = timeFrame === "M" ? 20 : timeFrame === "H" ? 1 : 1 / 24;
-  let difMinutesFactor =
-    timeFrame === "M" ? 5 : timeFrame === "H" ? 60 : 24 * 60;
-  dataMeasurements.forEach((current) => {
-    if (previous.date) {
-      difMinutes = (current.date - previous.date) / (1000 * 60);
+  let graphArray = [];
+  for (let i = 0; i <= tfSpecs.ticks; i++) {
+    let date = new Date(firstTimeStamp);
+    date.setMinutes(date.getMinutes() + tfSpecs.difMinutesFactor * i);
+    let measurement = dataMeasurements.find(
+      (x) => x.date.getTime() == date.getTime()
+    );
+    const year = date.getFullYear() - 2000;
+    const month = (date.getMonth() + 1).toString().padStart(2, "0"); // Months are 0-indexed, so we add 1
+    const day = date.getDate().toString().padStart(2, "0");
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
 
-      if (current.date > lastTimeStamp - 1000 * 60 * 60 * 24 * days) {
-        console.log(difMinutes, difMinutesFactor);
-        if (
-          difMinutes > difMinutesFactor - 1 &&
-          difMinutes < difMinutesFactor + 1
-        ) {
-          electricityDiff =
-            (current.electricity - previous.electricity) * WHfactor;
-          gasDiff = (current.gas - previous.gas) / 1000;
-          waterDiff = current.water - previous.water;
-        } else {
-          electricityDiff = 0;
-          gasDiff = 0;
-          waterDiff = 0;
-        }
-        graphData.push({
-          ...current,
-          electricityDiff: electricityDiff,
-          gasDiff: gasDiff,
-          waterDiff: waterDiff,
-        });
-      }
+    // Ensure two-digit formatting for day, hours, and minutes
+    const formattedDay = day < 10 ? `0${day}` : day;
+    const formattedHours = hours < 10 ? `0${hours}` : hours;
+    const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
+
+    // Construct the "dd hh:mm" format
+    let formattedDateTime;
+    if (tfSpecs.unit == "M") {
+      formattedDateTime = `${day} ${hours}:${minutes}`;
+    } else if (tfSpecs.unit == "H") {
+      formattedDateTime = `${day} ${hours}:${minutes}`;
+    } else {
+      formattedDateTime = `${day}-${month}`;
     }
-    previous = { ...current };
+    graphArray.push({ date: date, ...measurement, xAxis: formattedDateTime });
+  }
+  let previousM = false;
+  graphArray.forEach((currentM, i) => {
+    currentM.electricityDiff = 0;
+    currentM.gasDiff = 0;
+    currentM.waterDiff = 0;
+    if (previousM && previousM.electricity) {
+      currentM.electricityDiff =
+        (currentM.electricity - previousM.electricity) *
+        (60 / tfSpecs.difMinutesFactor);
+      currentM.gasDiff = (currentM.gas - previousM.gas) / 1000;
+      currentM.waterDiff = currentM.water - previousM.water;
+    }
+    previousM = currentM;
   });
-  console.log(graphData);
-  return graphData;
+  return graphArray;
 }
 
-function drawChart(graphData, elementID, title, yAxisKey) {
+function drawChart(graphData, elementID, title, yAxisKey, tfSpecs) {
   const ctx = document.getElementById(elementID);
   const labels = [];
-  for (let i = 0; i < graphData.length; ++i) {
-    labels.push(graphData[i].date);
-  }
   new Chart(ctx, {
-    type: "line",
+    type: "bar",
 
     data: {
       labels: labels,
@@ -143,35 +179,22 @@ function drawChart(graphData, elementID, title, yAxisKey) {
     options: {
       maintainAspectRatio: false,
       parsing: {
-        xAxisKey: "date",
+        xAxisKey: "xAxis",
         yAxisKey: yAxisKey,
       },
       scales: {
         y: {
           beginAtZero: false,
         },
-
         x: {
           beginAtZero: false,
-          type: "time",
-          time: {
-            parser: "MM/dd/yyyy HH:mm",
-            tooltipFormat: "dd/MM/yyyy hh:mm",
-            unit: "hour",
-            unitStepSize: 1,
-            displayFormats: {
-              day: "HH:mm",
-              minute: "HH:mm",
-              hour: "HH:mm",
-            },
-          },
         },
       },
     },
   });
 }
 
-function returnMock(timeframe) {
+function returnMock(tfSpecs) {
   let responseMinute = `1499524 1962451 415473 0 230908 220000 
   1499524 1962626 415473 0 230908 220500 
   1499524 1962650 415473 0 230908 221000 
@@ -499,10 +522,10 @@ function returnMock(timeframe) {
 0 0 0 0 0 0 
 0 0 0 0 0 0 
 0 0 0 0 0 0 
-1499657 1962779 415473 0 230909 0 
-0 0 0 0 0 0 
-0 0 0 0 0 0 
-0 0 0 0 0 0 
+1490657 1962779 415473 0 230909 0 
+1492657 1962779 416473 0 230910 0
+1494657 1962779 416773 0 230911 0 
+1495057 1962779 416973 0 230912 0
 0 0 0 0 0 0 
 0 0 0 0 0 0 
 0 0 0 0 0 0 
@@ -842,9 +865,9 @@ function returnMock(timeframe) {
 0 0 0 0 0 0`;
 
   let response =
-    timeframe === "M"
+    tfSpecs.unit === "M"
       ? responseMinute
-      : timeframe === "H"
+      : tfSpecs.unit === "H"
       ? responseHours
       : responseDay;
 
